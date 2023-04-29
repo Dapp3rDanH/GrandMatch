@@ -79,7 +79,7 @@ class OverlapCalculator:
 
 @dataclass
 class ExcelImporter:
-    directory: str
+    excel_file_full_path: str
     siblingsByName: Dict[str, Sibling] = field(default_factory=dict)
     siblingsByKit: Dict[str, Sibling] = field(default_factory=dict)
     grandparentsByName: Dict[str, Grandparent] = field(default_factory=dict)
@@ -126,7 +126,7 @@ class ExcelImporter:
 
 
     def importCousins(self):
-        siblings_df = pd.read_excel('visualphasing.xlsx', sheet_name='Cousins', header=0, engine='openpyxl')
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Cousins', header=0, engine='openpyxl')
 
         for index, row in siblings_df.iterrows():
             name = row['Name'].strip()
@@ -139,7 +139,7 @@ class ExcelImporter:
 
 
     def importGrandparents(self):
-        siblings_df = pd.read_excel('visualphasing.xlsx', sheet_name='Grandparents', header=0, engine='openpyxl')
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Grandparents', header=0, engine='openpyxl')
 
         for index, row in siblings_df.iterrows():
             name = row['Name'].strip()
@@ -148,7 +148,7 @@ class ExcelImporter:
             self.grandparentsByName.setdefault(name, grandparent)
 
     def importSiblings(self):
-        siblings_df = pd.read_excel('visualphasing.xlsx', sheet_name='Siblings', header=0, engine='openpyxl')
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Siblings', header=0, engine='openpyxl')
 
         for index, row in siblings_df.iterrows():
             name = row['Name'].strip()
@@ -160,7 +160,7 @@ class ExcelImporter:
 
 
     def importSiblingOverlap(self):
-        siblings_df = pd.read_excel('visualphasing.xlsx', sheet_name='SiblingOverlaps', header=0, engine='openpyxl')
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='SiblingOverlaps', header=0, engine='openpyxl')
 
         for index, row in siblings_df.iterrows():
             chromosome = row['Chr']
@@ -181,7 +181,7 @@ class ExcelImporter:
             self.overlaps.append(siblingOverlap)
 
     def importGrandparentSegments(self):
-        siblings_df = pd.read_excel('visualphasing.xlsx', sheet_name='GrandparentSegments', header=0, engine='openpyxl')
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='GrandparentSegments', header=0, engine='openpyxl')
 
         for index, row in siblings_df.iterrows():
             chromosome = row['Chr']
@@ -196,7 +196,7 @@ class ExcelImporter:
 
     def importGrandparentSegments2(self):
         # read the excel file into a pandas dataframe using the openpyxl engine
-        df = pd.read_excel('visualphasing.xlsx', sheet_name='GrandparentSegments', header=0, engine='openpyxl')
+        df = pd.read_excel(self.excel_file_full_path, sheet_name='GrandparentSegments', header=0, engine='openpyxl')
 
         # group by the "Chromosome" column and sort each group by "B37 Start" and "B37 End"
         df_grouped = df.groupby('Chromosome').apply(lambda x: x.sort_values(['B37 Start', 'B37 End'])).reset_index(drop=True)
@@ -238,8 +238,17 @@ class TriagImporter:
                 triang_list.append(triang)
         return triang_list
 
-directory: str = f"C:\\_documents\\personal\\DNA\\visualphasing\\triangulation\\Python"
-excelImporter:ExcelImporter = ExcelImporter(directory)
+# directory: str = f"C:\\_documents\\personal\\DNA\\visualphasing\\triangulation\\Python"
+
+directory = os.getcwd()#"/path/to/working/directory"
+
+# Set the file name
+file_name = "inputfiles\\visualphasing.xlsx"
+
+# Join the working directory and file name to create the full path
+full_path = os.path.join(directory, file_name)
+
+excelImporter:ExcelImporter = ExcelImporter(full_path)
 excelImporter.importExcel()
 
 siblingsByKit: Dict[str, Sibling] = excelImporter.siblingsByKit
