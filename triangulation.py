@@ -27,6 +27,12 @@ class Triang:
     B37_Start: int
     B37_End: int
     cM: str
+    grandparent: str = "Unknown"
+
+@dataclass
+class GrandparentTriang(Triang):
+    grandparent: str
+
     
 @dataclass
 class Sibling:
@@ -254,7 +260,10 @@ class TriagImporter:
         with open(file_path, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                triang = Triang(row["Chr"], row["Kit1 Number"], row["Kit1 Name"], row["Kit1 Email"], row["Kit2 Number"], row["Kit2 Name"], row["Kit2 Email"], int(row["B37 Start"]), int(row["B37 End"]), row["cM"])
+                chr_string = (row["Chr"])
+                if chr_string == "X":
+                    chr_string = 23
+                triang = Triang(int(chr_string), row["Kit1 Number"], row["Kit1 Name"], row["Kit1 Email"], row["Kit2 Number"], row["Kit2 Name"], row["Kit2 Email"], int(row["B37 Start"]), int(row["B37 End"]), row["cM"])
                 triang_list.append(triang)
         return triang_list
 
@@ -339,9 +348,10 @@ class GrandMatch:
 
                     # Create a dictionary for this sibling for just this chromosome
                     for triang in sibling_triangulation:
-                        if sibling_kit not in chromosome_model.triangBySibling:
-                            chromosome_model.triangBySibling[sibling_kit] = []
-                        chromosome_model.triangBySibling[sibling_kit].append(triang)
+                        if triang.Chr == chr_number:
+                            if sibling_kit not in chromosome_model.triangBySibling:
+                                chromosome_model.triangBySibling[sibling_kit] = []
+                            chromosome_model.triangBySibling[sibling_kit].append(triang)
 
 
     def match_chromosomes(self) -> List[Triang]:
@@ -394,11 +404,20 @@ class GrandMatch:
                                     add_group = False
 
                                 if add_group == True:
-                                    filteredTriang += triangGroup.triang_list
+                                    if len(triangGroup.triang_list)>0:
+                                        # for t in triangGroup.triang_list:
+                                            # if t.Chr == 2:
+                                            #     print(t.Chr)
+                                        filteredTriang += triangGroup.triang_list
+
+                                print((filteredTriang))
 
                                 triangGroup.reset(t.Kit1_Number, t.Chr)
 
                             if t.B37_Start >= overlap.B37_Start and t.B37_Start <= overlap.B37_End and t.B37_End <= overlap.B37_End:
+                                t.grandparent = gparent
+                                # if t.Chr == 2:
+                                #     print(t.Chr)
                                 triangGroup.triang_list.append(t)
 
                                 # if kit2 is one of the siblings
@@ -413,25 +432,6 @@ class GrandMatch:
         return filteredTriang
 
 
-
-
-    def create_overlap_by_chr(self):
-        calculator = OverlapCalculator(self.grandparent_segments,self.siblingsByKit)
-        self.overlaps = calculator.calculate_overlaps()
-        self.sibling_overlap_by_chr = {}
-        # loop over the SiblingOverlap instances in the list
-        for sib_overlap in self.overlaps:
-            # get the chromosome name
-            chr_name = sib_overlap.Chr
-            
-            # if the chromosome name is not already a key in the dictionary, add it with an empty list as the value
-            if chr_name not in self.sibling_overlap_by_chr:
-                self.sibling_overlap_by_chr[chr_name] = []
-            
-            # add the SiblingOverlap instance to the list associated with the chromosome name
-            self.sibling_overlap_by_chr[chr_name].append(sib_overlap)
-
-
     def get_triangulation(self):
         for sibling in self.siblingsByName.values():
             file_path: str = os.path.join(directory, sibling.kit.strip() + ".csv")
@@ -439,72 +439,38 @@ class GrandMatch:
             triang_list = importer.createList(file_path)
             self.triangulationBySiblingKit.setdefault(sibling.kit.strip(), triang_list)
 
+    def export_overlaps(self):
+        for sibling_kit in self.siblingsByKit.keys():
+                sibling_triangulation = self.triangulationBySiblingKit[sibling_kit]
+                df = pd.DataFrame([vars(o) for o in sibling_triangulation])
+                df.to_csv(f'out\\triangs-{sibling_kit}.csv', index=False)
+
+
+        for chr_number in self.chromosome_models.keys():
+            chrome: ChromosomeModel = self.chromosome_models[chr_number]
+            for gparent in self.grandparentsByName.keys():
+
+                if gparent in chrome.overlapsByGrandparent:
+                    overlaps = chrome.overlapsByGrandparent[gparent]
+                    df = pd.DataFrame([vars(o) for o in overlaps])
+                    # drop the 'segments' column
+                    df = df.drop('segments', axis=1)
+                    df.to_csv(f'out\\overlaps-{chr_number}-{gparent}.csv', index=False)
+
+                    segments = chrome.segmentsByGrandparent[gparent]
+                    df = pd.DataFrame([vars(o) for o in segments])
+                    df.to_csv(f'out\\segments-{chr_number}-{gparent}.csv', index=False)
+
+            for sibling_kit in self.siblingsByKit:
+                    triangs = chrome.triangBySibling[sibling_kit]
+                    df = pd.DataFrame([vars(o) for o in triangs])
+                    df.to_csv(f'out\\triangs-{chr_number}-{sibling_kit}.csv', index=False)
+
+
     def exportToCsv(self, triangs: List[Triang]):
         df = pd.DataFrame([vars(triang) for triang in triangs])
+
         df.to_csv('out\\matched_triangulations.csv', index=False)
-
-    def create_matches(self) -> List[Triang]:
-        filteredTriang: List[Triang] = []
-        overlap:SiblingOverlap()
-        for overlap in self.overlaps:
-
-            cousinKitsToExclude: List[int] =[]
-            for cuz in self.cousinByKit.values():
-                if overlap.Grandparent == cuz.grandparent:
-                    pass
-                else:
-                    cousinKitsToExclude.append(cuz.kit)
-            
-
-            bestSiblingKit:str = overlap.sibling_kits[0]
-            key: str = bestSiblingKit + '-' + triang.Chr
-            chr_triang_list: List[Triang] = self.triangBySiblingByChr[key]
-            sorted_list: List[Triang] = sorted(chr_triang_list, key=lambda t: (t.Kit1_Number, t.B37_Start, t.B37_End))
-
-            triangGroup = TriangGroup() 
-            t: Triang
-            for t in sorted_list:
-                if triangGroup.kit_Number != t.Kit1_Number:
-                    #Make sure the rows contain at least 1 row for each overlap sibling
-                    add_group: bool = True
-                    for overlapSiblingKit in overlap.sibling_kits:
-                        if overlapSiblingKit != bestSiblingKit and overlapSiblingKit not in triangGroup.siblingKitCountGroup.keys():
-                            add_group = False
-        
-                    # make sure group does not contain any NON overlap siblings
-                    for groupSiblingKit in triangGroup.siblingKitCountGroup.keys():
-                        if groupSiblingKit not in overlap.sibling_kits:
-                            add_group = False
-
-            #       If any triang within the Kit1_Number group is one of the "Excluded Cousin Kits", then remove the entire group
-                    if triangGroup.groupContainsExcludedCousin == True:
-                        add_group = False
-
-                    if triangGroup.kit_Number in cousinKitsToExclude:
-                        add_group = False
-
-                    if triangGroup.kit_Number in siblingsByKit.keys():
-                        add_group = False
-
-                    if add_group == True:
-                        filteredTriang += triangGroup.triang_list
-
-                    triangGroup.reset(t.Kit1_Number, t.Chr)
-
-                if t.B37_Start >= overlap.B37_Start and t.B37_Start <= overlap.B37_End and t.B37_End <= overlap.B37_End:
-                    triangGroup.triang_list.append(t)
-
-                    # if kit2 is one of the siblings
-                    if t.Kit2_Number in siblingsByKit:
-                        #if kit2 has not already been added to group
-                        if t.Kit2_Number not in triangGroup.siblingKitCountGroup.keys():
-                            triangGroup.siblingKitCountGroup[t.Kit2_Number] = 1
-                        else:
-                            triangGroup.siblingKitCountGroup[t.Kit2_Number] +=1
-                    if t.Kit2_Number in cousinKitsToExclude:
-                        triangGroup.groupContainsExcludedCousin = True
-
-
 
 # directory: str = f"C:\\_documents\\personal\\DNA\\visualphasing\\triangulation\\Python"
 directory = os.getcwd() + "\\inputfiles"
@@ -539,6 +505,7 @@ grandMatch.LoopOnChromosomeData()
 filteredTriang = grandMatch.match_chromosomes()
 # filteredTriang = grandMatch.create_matches()
 grandMatch.exportToCsv(filteredTriang)
+grandMatch.export_overlaps()
 
 
 
