@@ -2,9 +2,11 @@ import csv
 import os
 import fnmatch
 from dataclasses import dataclass, field
-import pandas as pd
+
 from typing import Dict, List
 from enum import Enum
+
+from excel_importer import ExcelImporter
 
 @dataclass
 class GrandparentSegment:
@@ -114,23 +116,24 @@ class OverlapCalculator:
                     m.is_active = True
                     milestones_to_deactivate.append(m)
 
-            overlap_start = max(seg.B37_Start for seg in activated_segments)
-            overlap_start = max(overlap_start, active_event_number)
-            chr = activated_segments[0].Chr
-            grandparent = activated_segments[0].Grandparent
+            if len(activated_segments) > 0:
+                overlap_start = max(seg.B37_Start for seg in activated_segments)
+                overlap_start = max(overlap_start, active_event_number)
+                chr = activated_segments[0].Chr
+                grandparent = activated_segments[0].Grandparent
 
-            overlap_segments = activated_segments[:]
-            sibling_keys : List[str] = []
-            for s in overlap_segments:
-                sibling_keys.append(s.Kit)
+                overlap_segments = activated_segments[:]
+                sibling_keys : List[str] = []
+                for s in overlap_segments:
+                    sibling_keys.append(s.Kit)
 
-            overlap: SiblingOverlap = SiblingOverlap(segments=overlap_segments, B37_Start=overlap_start, B37_End=overlap_end, Chr=chr, Grandparent=grandparent, sibling_kits=sibling_keys)
-            overlaps.append(overlap)
-            #remove any segments where the end milestone were active
-            for m in milestones_to_deactivate:
-                for seg in activated_segments:
-                    if seg == m.segment:
-                        activated_segments.remove(seg)
+                overlap: SiblingOverlap = SiblingOverlap(segments=overlap_segments, B37_Start=overlap_start, B37_End=overlap_end, Chr=chr, Grandparent=grandparent, sibling_kits=sibling_keys)
+                overlaps.append(overlap)
+                #remove any segments where the end milestone were active
+                for m in milestones_to_deactivate:
+                    for seg in activated_segments:
+                        if seg == m.segment:
+                            activated_segments.remove(seg)
 
             active_event_number = overlap_end
 
@@ -154,97 +157,6 @@ class TriangGroup:
         self.siblingKitCountGroup = {}
         self.triang_list = []
 
-
-
-
-@dataclass
-class ExcelImporter:
-    excel_file_full_path: str
-    siblingsByName: Dict[str, Sibling] = field(default_factory=dict)
-    siblingsByKit: Dict[str, Sibling] = field(default_factory=dict)
-    grandparentsByName: Dict[str, Grandparent] = field(default_factory=dict)
-    grandparentsByKit: Dict[str, Grandparent] = field(default_factory=dict)
-    cousinByName: Dict[str, Cousin] = field(default_factory=dict)
-    cousinByKit: Dict[str, Cousin] = field(default_factory=dict)
-    grandparent_segments: List[GrandparentSegment] = field(default_factory=list)
-    overlaps : List[SiblingOverlap] = field(default_factory=list)
-
-
-
-    def importExcel(self):
-        self.importSiblings()
-        self.importCousins()
-        self.importGrandparents()
-        self.importGrandparentSegments()
-
-
-    def importCousins(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Cousins', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            name = row['Name'].strip()
-            kit = row['Kit'].strip()
-            grandparent = row["Grandparent"]
-
-            cousin = Cousin(name=name,kit=kit, grandparent=grandparent)
-            self.cousinByName.setdefault(name, cousin)
-            self.cousinByKit.setdefault(kit,cousin)
-
-    def importGrandparents(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Grandparents', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            name = row['Name'].strip()
-
-            grandparent = Grandparent(name=name)
-            self.grandparentsByName.setdefault(name, grandparent)
-
-    def importSiblings(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Siblings', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            name = row['Name'].strip()
-            kit = row['Kit'].strip()
-
-            sibling = Sibling(name=name, kit=kit)
-            self.siblingsByName.setdefault(name, sibling)
-            self.siblingsByKit.setdefault(kit, sibling)
-
-    def importSiblingOverlap(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='SiblingOverlaps', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            chromosome = row['Chr']
-            siblingNames = row['Siblings']
-            grandparent = row['Grandparent']
-            start = int(row['B37 Start'])
-            end = int(row['B37 End'])
-            siblingOverlap = SiblingOverlap(chromosome, siblingNames, grandparent, start, end)
-
-            name_list = siblingNames.split('|')
-            name_list = [name.strip() for name in name_list]
-            for x in name_list:
-                if x in self.siblingsByName:
-                    sibling: Sibling = self.siblingsByName[x]
-                    siblingOverlap.siblings_list.append(sibling)
-                    siblingOverlap.sibling_kits.append(sibling.kit)
-
-            self.overlaps.append(siblingOverlap)
-
-    def importGrandparentSegments(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='GrandparentSegments', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            chromosome = row['Chr']
-            sibling = row['Sibling']
-            kit = row['Kit']
-            grandparent = row['Grandparent']
-            start = int(row['B37 Start'])
-            end = int(row['B37 End'])
-            segment = GrandparentSegment(chromosome, sibling, kit, grandparent, start, end)
-
-            self.grandparent_segments.append(segment)
-
 @dataclass
 class TriagImporter:
     def importCsv(self, directory: str):
@@ -252,10 +164,10 @@ class TriagImporter:
             for filename in fnmatch.filter(files, '*.csv'):
                 file_path: str = os.path.join(root, filename)
                 triang_list = self.createList(file_path)
-                print(file_path)
-                print(triang_list)
+                # print(file_path)
+                # print(triang_list)
 
-    def createList(self, file_path: str) -> []:
+    def createList(self, file_path: str) -> List[Triang]:
         triang_list = []
         with open(file_path, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -308,7 +220,7 @@ class GrandMatch:
             print(grandparentName)
 
         for chr in self.sibling_overlap_by_chr.keys():
-            overlaps = sibling_overlap_by_chr[chr]
+            overlaps = self.sibling_overlap_by_chr[chr]
             for overlap in overlaps:
                 print(f"Chr {chr} SiblingOverlap from {overlap.B37_Start} to {overlap.B37_End} between segments:")
                 for seg in overlap.segments:
@@ -410,7 +322,7 @@ class GrandMatch:
                                             #     print(t.Chr)
                                         filteredTriang += triangGroup.triang_list
 
-                                print((filteredTriang))
+                                # print((filteredTriang))
 
                                 triangGroup.reset(t.Kit1_Number, t.Chr)
 
