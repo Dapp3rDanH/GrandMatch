@@ -2,11 +2,14 @@ import csv
 import os
 import fnmatch
 from dataclasses import dataclass, field
-
+import pandas as pd
 from typing import Dict, List
 from enum import Enum
 
-from excel_importer import ExcelImporter
+from gedmatch_segment import GedMatchSegment, GedMatchSegmentImporter
+from sibling_match import SiblingMatch
+
+# from excel_importer import ExcelImporter
 
 @dataclass
 class GrandparentSegment:
@@ -30,6 +33,7 @@ class Triang:
     B37_End: int
     cM: str
     grandparent: str = "Unknown"
+    source_sibling: str = "Unknown"
 
 @dataclass
 class GrandparentTriang(Triang):
@@ -50,6 +54,13 @@ class Cousin:
     name: str
     kit: str
     grandparent: str
+
+@dataclass
+class ChromosomeMatch:
+    name: str
+    kit: str
+    grandparent: str
+    chr: int
 
 @dataclass
 class SiblingOverlap:
@@ -160,7 +171,7 @@ class TriangGroup:
 @dataclass
 class TriagImporter:
     def importCsv(self, directory: str):
-        for root, dirs, files in os.walk(self.directory):
+        for root, dirs, files in os.walk(directory):
             for filename in fnmatch.filter(files, '*.csv'):
                 file_path: str = os.path.join(root, filename)
                 triang_list = self.createList(file_path)
@@ -181,7 +192,7 @@ class TriagImporter:
 
 @dataclass()
 class ChromosomeModel:
-    grand_match: any
+    grand_match: "GrandMatch"
     chr: int
     segmentsByGrandparent: Dict[str, List[GrandparentSegment]] = field(default_factory=dict)
     overlapsByGrandparent: Dict[str, List[SiblingOverlap]] = field(default_factory=dict)
@@ -189,7 +200,114 @@ class ChromosomeModel:
 
     def __post_init__(self):
         pass
-    
+
+@dataclass()
+class ChromosomeSetting:
+    chr: int
+    mode: str = "No"
+
+
+
+@dataclass()
+class ExcelImporter:
+    excel_file_full_path: str
+    siblingsByName: Dict[str, Sibling] = field(default_factory=dict)
+    siblingsByKit: Dict[str, Sibling] = field(default_factory=dict)
+    grandparentsByName: Dict[str, Grandparent] = field(default_factory=dict)
+    grandparentsByKit: Dict[str, Grandparent] = field(default_factory=dict)
+    cousinByName: Dict[str, Cousin] = field(default_factory=dict)
+    cousinByKit: Dict[str, Cousin] = field(default_factory=dict)
+    grandparent_segments: List[GrandparentSegment] = field(default_factory=list)
+    overlaps : List[SiblingOverlap] = field(default_factory=list)
+    chromosome_settings_by_chr: Dict[int, ChromosomeSetting] = field(default_factory=dict)
+
+    def importExcel(self):
+        self.import_chromosome_settings()
+        self.importSiblings()
+        self.importCousins()
+        self.importGrandparents()
+        self.importGrandparentSegments()
+
+    def import_chromosome_settings(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='chromosomes', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            chr_as_str = row['Chr']
+            chr: int = int(chr_as_str)
+
+            mode = row['Mode'].strip()
+      
+            if chr not in self.chromosome_settings_by_chr:
+                setting = ChromosomeSetting(chr=chr, mode=mode)
+                self.chromosome_settings_by_chr[chr] = setting
+
+    def importCousins(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Cousins', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            name = row['Name'].strip()
+            kit = row['Kit'].strip()
+            grandparent = row["Grandparent"]
+
+            cousin = Cousin(name=name,kit=kit, grandparent=grandparent)
+            self.cousinByName.setdefault(name, cousin)
+            self.cousinByKit.setdefault(kit,cousin)
+
+    def importGrandparents(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Grandparents', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            name = row['Name'].strip()
+
+            grandparent = Grandparent(name=name)
+            self.grandparentsByName.setdefault(name, grandparent)
+
+    def importSiblings(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Siblings', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            name = row['Name'].strip()
+            kit = row['Kit'].strip()
+
+            sibling = Sibling(name=name, kit=kit)
+            self.siblingsByName.setdefault(name, sibling)
+            self.siblingsByKit.setdefault(kit, sibling)
+
+    def importSiblingOverlap(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='SiblingOverlaps', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            chromosome = row['Chr']
+            siblingNames = row['Siblings']
+            grandparent = row['Grandparent']
+            start = int(row['B37 Start'])
+            end = int(row['B37 End'])
+            siblingOverlap = SiblingOverlap(chromosome, siblingNames, grandparent, start, end)
+
+            name_list = siblingNames.split('|')
+            name_list = [name.strip() for name in name_list]
+            for x in name_list:
+                if x in self.siblingsByName:
+                    sibling: Sibling = self.siblingsByName[x]
+                    siblingOverlap.siblings_list.append(sibling)
+                    siblingOverlap.sibling_kits.append(sibling.kit)
+
+            self.overlaps.append(siblingOverlap)
+
+    def importGrandparentSegments(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='GrandparentSegments', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            chromosome = row['Chr']
+            sibling = row['Sibling']
+            kit = row['Kit']
+            grandparent = row['Grandparent']
+            start = int(row['B37 Start'])
+            end = int(row['B37 End'])
+            segment = GrandparentSegment(chromosome, sibling, kit, grandparent, start, end)
+
+            self.grandparent_segments.append(segment)   
+
 
 @dataclass()
 class GrandMatch:
@@ -226,21 +344,21 @@ class GrandMatch:
                 for seg in overlap.segments:
                     print(f"  - {seg.Sibling} ({seg.B37_Start} to {seg.B37_End})")
 
-    def create_chromosome_models(self):
+    def create_chromosome_models(self, chromosome_settings_by_chr: Dict[int, ChromosomeSetting]):
 
         #separate the grandpatnet segments by chromosome.
         for segment in self.grandparent_segments:
             # get the chromosome name
             chr_number = segment.Chr
-            
-            # if the chromosome name is not already a key in the dictionary, add it with an empty list as the value
-            if chr_number not in self.chromosome_models:
-                self.chromosome_models[chr_number] = ChromosomeModel(chr=chr_number,grand_match=self)
+            if chromosome_settings_by_chr[chr_number].mode == "Yes":
+                # if the chromosome name is not already a key in the dictionary, add it with an empty list as the value
+                if chr_number not in self.chromosome_models:
+                    self.chromosome_models[chr_number] = ChromosomeModel(chr=chr_number,grand_match=self)
 
-            chromosome_model = self.chromosome_models[chr_number]
-            if segment.Grandparent not in chromosome_model.segmentsByGrandparent:
-                chromosome_model.segmentsByGrandparent[segment.Grandparent] = []
-            chromosome_model.segmentsByGrandparent[segment.Grandparent].append(segment)
+                chromosome_model = self.chromosome_models[chr_number]
+                if segment.Grandparent not in chromosome_model.segmentsByGrandparent:
+                    chromosome_model.segmentsByGrandparent[segment.Grandparent] = []
+                chromosome_model.segmentsByGrandparent[segment.Grandparent].append(segment)
 
     def LoopOnChromosomeData(self):
         for chr_number in self.chromosome_models.keys():
@@ -328,6 +446,7 @@ class GrandMatch:
 
                             if t.B37_Start >= overlap.B37_Start and t.B37_Start <= overlap.B37_End and t.B37_End <= overlap.B37_End:
                                 t.grandparent = gparent
+                                t.source_sibling = bestSiblingKit
                                 # if t.Chr == 2:
                                 #     print(t.Chr)
                                 triangGroup.triang_list.append(t)
@@ -357,13 +476,14 @@ class GrandMatch:
                 df = pd.DataFrame([vars(o) for o in sibling_triangulation])
                 df.to_csv(f'out\\triangs-{sibling_kit}.csv', index=False)
 
-
+        all_overlaps = []
         for chr_number in self.chromosome_models.keys():
             chrome: ChromosomeModel = self.chromosome_models[chr_number]
             for gparent in self.grandparentsByName.keys():
 
                 if gparent in chrome.overlapsByGrandparent:
                     overlaps = chrome.overlapsByGrandparent[gparent]
+                    all_overlaps.extend(overlaps)
                     df = pd.DataFrame([vars(o) for o in overlaps])
                     # drop the 'segments' column
                     df = df.drop('segments', axis=1)
@@ -378,13 +498,60 @@ class GrandMatch:
                     df = pd.DataFrame([vars(o) for o in triangs])
                     df.to_csv(f'out\\triangs-{chr_number}-{sibling_kit}.csv', index=False)
 
+        df = pd.DataFrame([vars(o) for o in all_overlaps])
+        # drop the 'segments' column
+        df = df.drop('segments', axis=1)
+        df.to_csv(f'out\\all_overlaps.csv', index=False)
 
-    def exportToCsv(self, triangs: List[Triang]):
+    def make_out_folder(self, directory: str):
+        # Check if the directory already exists
+        if not os.path.exists(directory):
+            # Create the directory
+            os.makedirs(directory)
+            print(f"Directory '{directory}' created successfully!")
+        else:
+            print(f"Directory '{directory}' already exists.")
+
+    def export_triangs_to_csv(self, triangs: List[Triang]):
+        directory = "out"
+        self.make_out_folder(directory)
         df = pd.DataFrame([vars(triang) for triang in triangs])
+        df.to_csv(f'{directory}\\matched_triangulations.csv', index=False)
 
-        df.to_csv('out\\matched_triangulations.csv', index=False)
+    def export_chromosome_matches_to_csv(self, chromosome_matches: List[ChromosomeMatch]):
+        directory: str = "out"
+        self.make_out_folder(directory)
+        df = pd.DataFrame([vars(c) for c in chromosome_matches])
+        df.to_csv(f'{directory}\\chromosome_matches.csv', index=False)
+    
+    def extract_kits(self, triangs: List[Triang]):
+        matchesByKit: Dict[(str, int), List[ChromosomeMatch]] = {}
+        for t in triangs:
+            key = (t.Kit1_Number, t.Chr)
+            if key not in matchesByKit:
+                matchesByKit[key] = ChromosomeMatch(name=t.Kit1_Name,kit=t.Kit1_Number, grandparent=t.grandparent, chr=t.Chr)
 
-# directory: str = f"C:\\_documents\\personal\\DNA\\visualphasing\\triangulation\\Python"
+        self.export_chromosome_matches_to_csv(matchesByKit.values())
+
+        gedmatch_importer = GedMatchSegmentImporter()
+        segment_list: List[GedMatchSegment] = gedmatch_importer.importCsv(directory=os.getcwd() + "\\inputfiles\\gedmatch")
+
+        other_matches: Dict[str, SiblingMatch] = {}
+        for kit_chr in matchesByKit.keys():
+            for s in segment_list:
+                if kit_chr[0] == s.matched_kit:
+                    key = (s.matched_kit, s.chromosome)
+                    if key not in other_matches:
+                        sibling_match = SiblingMatch(chr=s.chromosome, cousin_kit=s.matched_kit, cousin_name=s.matched_name, sibling_kit=s.primary_kit, sibling_name=s.primary_kit)
+                        other_matches[key] = sibling_match
+
+        df = pd.DataFrame([vars(c) for c in other_matches.values()])
+        df.to_csv(f'out\\other_matches.csv', index=False)
+            
+                
+
+
+
 directory = os.getcwd() + "\\inputfiles"
 # Set the file name
 file_name = "visualphasing.xlsx"
@@ -411,12 +578,13 @@ grandMatch.overlaps = excelImporter.overlaps
 grandMatch.get_triangulation()
 grandMatch.print()
 
-grandMatch.create_chromosome_models()
+grandMatch.create_chromosome_models(excelImporter.chromosome_settings_by_chr)
 # grandMatch.create_overlap_by_chr()
 grandMatch.LoopOnChromosomeData()
 filteredTriang = grandMatch.match_chromosomes()
 # filteredTriang = grandMatch.create_matches()
-grandMatch.exportToCsv(filteredTriang)
+grandMatch.export_triangs_to_csv(filteredTriang)
+grandMatch.extract_kits(filteredTriang)
 grandMatch.export_overlaps()
 
 
