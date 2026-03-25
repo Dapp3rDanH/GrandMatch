@@ -131,3 +131,16 @@ dmypy.json
 #input and output directory
 #/inputfiles
 /out
+
+# Excel temp/lock files
+~$*
+
+# Personal DNA data
+inputfiles/gedmatch/triangulation/*
+!inputfiles/gedmatch/triangulation/README.md
+inputfiles/gedmatch/matches/*
+!inputfiles/gedmatch/matches/README.md
+inputfiles/analysis/*
+!inputfiles/analysis/README.md
+inputfiles/*.xlsm
+inputfiles/visualphasing (version 1).xlsx

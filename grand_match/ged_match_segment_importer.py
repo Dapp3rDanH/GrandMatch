@@ -4,22 +4,10 @@ import os
 import fnmatch
 from typing import List, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from triangulation import Triang
+from grand_match import GedMatchSegment, Triang
 
-@dataclass
-class GedMatchSegment:
-    primary_kit: str
-    matched_kit: str
-    chromosome: int
-    b37_start: str
-    b37_end: str
-    segment_cm: str
-    snps: str
-    matched_name: str
-    matched_sex: str
-    matched_email: str
-
+# if TYPE_CHECKING:
+    # from models.triangulation import Triang
 
 @dataclass
 class GedMatchSegmentImporter:

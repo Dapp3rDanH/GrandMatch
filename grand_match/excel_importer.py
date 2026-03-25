@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Dict, List
 import pandas as pd
-from triangulation import Cousin, Grandparent, GrandparentSegment, Sibling, SiblingOverlap
+from grand_match import ChromosomeSetting, Cousin, Grandparent, GrandparentSegment, Sibling, SiblingOverlap
 
 
-@dataclass
+@dataclass()
 class ExcelImporter:
     excel_file_full_path: str
     siblingsByName: Dict[str, Sibling] = field(default_factory=dict)
@@ -15,12 +15,27 @@ class ExcelImporter:
     cousinByKit: Dict[str, Cousin] = field(default_factory=dict)
     grandparent_segments: List[GrandparentSegment] = field(default_factory=list)
     overlaps : List[SiblingOverlap] = field(default_factory=list)
+    chromosome_settings_by_chr: Dict[int, ChromosomeSetting] = field(default_factory=dict)
 
     def importExcel(self):
+        self.import_chromosome_settings()
         self.importSiblings()
         self.importCousins()
         self.importGrandparents()
         self.importGrandparentSegments()
+
+    def import_chromosome_settings(self):
+        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='chromosomes', header=0, engine='openpyxl')
+
+        for index, row in siblings_df.iterrows():
+            chr_as_str = row['Chr']
+            chr: int = int(chr_as_str)
+
+            mode = row['Mode'].strip()
+      
+            if chr not in self.chromosome_settings_by_chr:
+                setting = ChromosomeSetting(chr=chr, mode=mode)
+                self.chromosome_settings_by_chr[chr] = setting
 
     def importCousins(self):
         siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='Cousins', header=0, engine='openpyxl')
@@ -87,4 +102,4 @@ class ExcelImporter:
             end = int(row['B37 End'])
             segment = GrandparentSegment(chromosome, sibling, kit, grandparent, start, end)
 
-            self.grandparent_segments.append(segment)
+            self.grandparent_segments.append(segment)   

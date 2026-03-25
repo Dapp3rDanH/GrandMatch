@@ -1,34 +1,12 @@
-from typing import List
+from typing import Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
 
-@dataclass
-class Segment:
-    name: str
-    start: int
-    end: int
+from grand_match import Segment,MilestoneType, Milestone,Overlap
 
 
 @dataclass
-class Overlap:
-    segments: List[Segment] = field(default_factory=list)
-    start: int = None
-    end: int = None
-
-class MilestoneType(Enum):
-    START = 1
-    END = 2
-
-@dataclass
-class Milestone:
-    segment: Segment
-    milestone_type: MilestoneType
-    event_number: int = 0
-    is_active: bool = False
-
-
-@dataclass
-class OverlapCalculator:
+class OverlapCalculatorOld:
     segment_list: List[Segment]
 
     def calculate_overlaps(self):
@@ -83,20 +61,4 @@ class OverlapCalculator:
 
         return overlaps
 
-segments = [
-    Segment("Dale", 25898921, 180690937),
-    Segment("Debbie", 34948532, 90620309),
-    Segment("Debbie", 127248485, 163633239),
-    Segment("Donal", 0, 33000000),
-    Segment("Donal", 81917419, 148700714),
-    Segment("Dennis", 108638291, 180690937),
-    Segment("Diane", 0, 180690937)
-]
 
-calculator = OverlapCalculator(segments)
-overlaps = calculator.calculate_overlaps()
-
-for overlap in overlaps:
-    print(f"Overlap from {overlap.start} to {overlap.end} between segments:")
-    for seg in overlap.segments:
-        print(f"  - {seg.name} ({seg.start} to {seg.end})")
