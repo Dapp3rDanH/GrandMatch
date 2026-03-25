@@ -7,8 +7,7 @@ from grand_match import GrandparentSegment
 @dataclass
 class SiblingOverlap:
     Chr: int
-    # Siblings: str
-    Grandparent: str  
+    Grandparent: str
     B37_Start: int
     B37_End: int
     sibling_kits: List[str] = field(default_factory=list)

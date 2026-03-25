@@ -2,12 +2,9 @@ from dataclasses import dataclass
 import csv
 import os
 import fnmatch
-from typing import List, TYPE_CHECKING
+from typing import List
 
-from grand_match import GedMatchSegment, Triang
-
-# if TYPE_CHECKING:
-    # from models.triangulation import Triang
+from grand_match import GedMatchSegment
 
 @dataclass
 class GedMatchSegmentImporter:
@@ -18,8 +15,6 @@ class GedMatchSegmentImporter:
                 file_path: str = os.path.join(root, filename)
                 sibling_segments = self.createList(file_path)
                 segment_list.extend(sibling_segments)
-                # print(file_path)
-                # print(triang_list)
         return segment_list
 
     def createList(self, file_path: str) -> List[GedMatchSegment]:

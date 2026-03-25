@@ -1,7 +1,5 @@
 import csv
 from dataclasses import dataclass
-import fnmatch
-import os
 from typing import List
 
 from grand_match import Triang
@@ -9,14 +7,6 @@ from grand_match import Triang
 
 @dataclass
 class TriagImporter:
-    def importCsv(self, directory: str):
-        for root, dirs, files in os.walk(directory):
-            for filename in fnmatch.filter(files, '*.csv'):
-                file_path: str = os.path.join(root, filename)
-                triang_list = self.createList(file_path)
-                # print(file_path)
-                # print(triang_list)
-
     def createList(self, file_path: str) -> List[Triang]:
         triang_list = []
         with open(file_path, 'r') as csvfile:

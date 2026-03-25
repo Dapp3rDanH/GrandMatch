@@ -20,27 +20,7 @@ class GrandMatch:
     cousinByName: Dict[str, Cousin] = field(default_factory=dict)
     cousinByKit: Dict[str, Cousin] = field(default_factory=dict)
     grandparent_segments: List[GrandparentSegment] = field(default_factory=list)
-    overlaps : List[SiblingOverlap] = field(default_factory=list)
-    sibling_overlap_by_chr: Dict[str, SiblingOverlap] = field(default_factory=dict)
     triangulationBySiblingKit: Dict[str, List[Triang]] = field(default_factory=dict)
-
-
-    def print(self):
-        for siblingName in self.siblingsByKit.keys():
-            print('Sibling-' + siblingName)
-
-        for cousinName in self.cousinByKit.keys():
-            print('Cousin-' + cousinName)
-
-        for grandparentName in self.grandparentsByName.keys():
-            print(grandparentName)
-
-        for chr in self.sibling_overlap_by_chr.keys():
-            overlaps = self.sibling_overlap_by_chr[chr]
-            for overlap in overlaps:
-                print(f"Chr {chr} SiblingOverlap from {overlap.B37_Start} to {overlap.B37_End} between segments:")
-                for seg in overlap.segments:
-                    print(f"  - {seg.Sibling} ({seg.B37_Start} to {seg.B37_End})")
 
     def create_chromosome_models(self, chromosome_settings_by_chr: Dict[int, ChromosomeSetting]):
 
@@ -63,15 +43,12 @@ class GrandMatch:
             chromosome_model: ChromosomeModel = self.chromosome_models[chr_number]
             for grandparent in chromosome_model.segmentsByGrandparent.keys():
                 segments = chromosome_model.segmentsByGrandparent[grandparent]
-                calculator = OverlapCalculator(segments,self.siblingsByKit)
+                calculator = OverlapCalculator(segments)
                 overlaps = calculator.calculate_overlaps()
                 chromosome_model.overlapsByGrandparent[grandparent] = overlaps
 
 
             for sibling_kit in self.siblingsByKit.keys():
-            #         file_path: str = os.path.join(directory, sibling.kit.strip() + ".csv")
-            #         importer: TriagImporter = TriagImporter()
-            #         triang_list = importer.createList(file_path)
                     sibling_triangulation = self.triangulationBySiblingKit[sibling_kit]
 
                     # Create a dictionary for this sibling for just this chromosome
@@ -133,20 +110,13 @@ class GrandMatch:
 
                                 if add_group == True:
                                     if len(triangGroup.triang_list)>0:
-                                        # for t in triangGroup.triang_list:
-                                            # if t.Chr == 2:
-                                            #     print(t.Chr)
                                         filteredTriang += triangGroup.triang_list
-
-                                # print((filteredTriang))
 
                                 triangGroup.reset(t.Kit1_Number, t.Chr)
 
                             if t.B37_Start >= overlap.B37_Start and t.B37_Start <= overlap.B37_End and t.B37_End <= overlap.B37_End:
                                 t.grandparent = gparent
                                 t.source_sibling = bestSiblingKit
-                                # if t.Chr == 2:
-                                #     print(t.Chr)
                                 triangGroup.triang_list.append(t)
 
                                 # if kit2 is one of the siblings
@@ -201,8 +171,6 @@ class GrandMatch:
                     df.to_csv(out_directory, index=False)
 
         df = pd.DataFrame([vars(o) for o in all_overlaps])
-        # drop the 'segments' column
-        # df = df.drop('segments', axis=1)
         out_directory = directory + f"\\all_overlaps.csv"
         df.to_csv(out_directory, index=False)
 

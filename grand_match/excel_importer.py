@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List
 import pandas as pd
-from grand_match import ChromosomeSetting, Cousin, Grandparent, GrandparentSegment, Sibling, SiblingOverlap
+from grand_match import ChromosomeSetting, Cousin, Grandparent, GrandparentSegment, Sibling
 
 
 @dataclass()
@@ -14,7 +14,6 @@ class ExcelImporter:
     cousinByName: Dict[str, Cousin] = field(default_factory=dict)
     cousinByKit: Dict[str, Cousin] = field(default_factory=dict)
     grandparent_segments: List[GrandparentSegment] = field(default_factory=list)
-    overlaps : List[SiblingOverlap] = field(default_factory=list)
     chromosome_settings_by_chr: Dict[int, ChromosomeSetting] = field(default_factory=dict)
 
     def importExcel(self):
@@ -68,27 +67,6 @@ class ExcelImporter:
             sibling = Sibling(name=name, kit=kit)
             self.siblingsByName.setdefault(name, sibling)
             self.siblingsByKit.setdefault(kit, sibling)
-
-    def importSiblingOverlap(self):
-        siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='SiblingOverlaps', header=0, engine='openpyxl')
-
-        for index, row in siblings_df.iterrows():
-            chromosome = row['Chr']
-            siblingNames = row['Siblings']
-            grandparent = row['Grandparent']
-            start = int(row['B37 Start'])
-            end = int(row['B37 End'])
-            siblingOverlap = SiblingOverlap(chromosome, siblingNames, grandparent, start, end)
-
-            name_list = siblingNames.split('|')
-            name_list = [name.strip() for name in name_list]
-            for x in name_list:
-                if x in self.siblingsByName:
-                    sibling: Sibling = self.siblingsByName[x]
-                    siblingOverlap.siblings_list.append(sibling)
-                    siblingOverlap.sibling_kits.append(sibling.kit)
-
-            self.overlaps.append(siblingOverlap)
 
     def importGrandparentSegments(self):
         siblings_df = pd.read_excel(self.excel_file_full_path, sheet_name='GrandparentSegments', header=0, engine='openpyxl')

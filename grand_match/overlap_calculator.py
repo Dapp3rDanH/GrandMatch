@@ -1,14 +1,11 @@
-from typing import Dict, List
-from dataclasses import dataclass, field
-from enum import Enum
+from typing import List
+from dataclasses import dataclass
 
-from grand_match import MilestoneType, Milestone,SiblingOverlap, GrandparentSegment, Sibling
+from grand_match import MilestoneType, Milestone, SiblingOverlap, GrandparentSegment
 
 @dataclass
 class OverlapCalculator:
     segment_list: List[GrandparentSegment]
-    # siblingsByName: Dict[str, Sibling] = field(default_factory=dict)
-    siblingsByKit: Dict[str, Sibling] = field(default_factory=dict)
 
     def calculate_overlaps(self):
         non_active_milestones: List[Milestone] = []
@@ -22,7 +19,7 @@ class OverlapCalculator:
 
         sorted_milestones = sorted(non_active_milestones, key=lambda m: (m.event_number))
         overlaps = []
- 
+
         #determine what segments are active
         activated_segments :List[GrandparentSegment] = []
         active_event_number:int = 0
@@ -42,7 +39,7 @@ class OverlapCalculator:
                     overlap_end = m.event_number
                     break
             #if this milestone is Type=End, then lets remove the segment after creating overlap
-            milestones_to_deactivate : List[segment] = []
+            milestones_to_deactivate: List[Milestone] = []
             for m in sorted_milestones:
                 if m.milestone_type == MilestoneType.END and m.event_number == overlap_end:
                     m.is_active = True
@@ -70,4 +67,3 @@ class OverlapCalculator:
             active_event_number = overlap_end
 
         return overlaps
-

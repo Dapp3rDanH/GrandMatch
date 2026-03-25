@@ -31,18 +31,14 @@ grandMatch.cousinByKit = excelImporter.cousinByKit
 
 grandMatch.grandparent_segments = excelImporter.grandparent_segments
 
-grandMatch.overlaps = excelImporter.overlaps
 print(f'Getting triangulation data from each sibling')
 grandMatch.get_triangulation(input_triangulation_directory)
-# grandMatch.print()
 print(f'Creating chromosome models')
 grandMatch.create_chromosome_models(excelImporter.chromosome_settings_by_chr)
-# grandMatch.create_overlap_by_chr()
 print(f'Deriving overlaps of grandparent segments and triangulation')
 grandMatch.LoopOnChromosomeData()
 
 filteredTriang = grandMatch.match_chromosomes()
-# filteredTriang = grandMatch.create_matches()
 print(f'Starting exports')
 grandMatch.export_triangs_to_csv(triangs=filteredTriang, directory=output_directory)
 grandMatch.extract_kits(triangs=filteredTriang, directory=output_directory)
