@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass, field
 import os
 from typing import Dict, List
@@ -59,6 +60,38 @@ class GrandMatch:
                             chromosome_model.triangBySibling[sibling_kit].append(triang)
 
 
+    def _evaluate_group(self, triangGroup: TriangGroup, overlap: SiblingOverlap,
+                        bestSiblingKit: str, cousinKitsToExclude: List[str]) -> List[Triang]:
+        """Evaluate a completed TriangGroup and return its triangs if it passes all filters."""
+        if len(triangGroup.triang_list) == 0:
+            return []
+
+        add_group: bool = True
+
+        #Make sure the rows contain at least 1 row for each overlap sibling
+        for overlapSiblingKit in overlap.sibling_kits:
+            if overlapSiblingKit != bestSiblingKit and overlapSiblingKit not in triangGroup.siblingKitCountGroup.keys():
+                add_group = False
+
+        # make sure group does not contain any NON overlap siblings
+        for groupSiblingKit in triangGroup.siblingKitCountGroup.keys():
+            if groupSiblingKit not in overlap.sibling_kits:
+                add_group = False
+
+        # If any triang within the Kit1_Number group is one of the "Excluded Cousin Kits", then remove the entire group
+        if triangGroup.groupContainsExcludedCousin == True:
+            add_group = False
+
+        if triangGroup.kit_Number in cousinKitsToExclude:
+            add_group = False
+
+        if triangGroup.kit_Number in self.siblingsByKit.keys():
+            add_group = False
+
+        if add_group == True:
+            return list(triangGroup.triang_list)
+        return []
+
     def match_chromosomes(self) -> List[Triang]:
         filteredTriang: List[Triang] = []
         for chr_number in self.chromosome_models.keys():
@@ -83,41 +116,19 @@ class GrandMatch:
                         chr_triang_list: List[Triang] = chrome.triangBySibling[bestSiblingKit]
                         sorted_list: List[Triang] = sorted(chr_triang_list, key=lambda t: (t.Kit1_Number, t.B37_Start, t.B37_End))
 
-                        triangGroup = TriangGroup() 
+                        triangGroup = TriangGroup()
                         t: Triang
                         for t in sorted_list:
                             if triangGroup.kit_Number != t.Kit1_Number:
-                                #Make sure the rows contain at least 1 row for each overlap sibling
-                                add_group: bool = True
-                                for overlapSiblingKit in overlap.sibling_kits:
-                                    if overlapSiblingKit != bestSiblingKit and overlapSiblingKit not in triangGroup.siblingKitCountGroup.keys():
-                                        add_group = False
-                    
-                                # make sure group does not contain any NON overlap siblings
-                                for groupSiblingKit in triangGroup.siblingKitCountGroup.keys():
-                                    if groupSiblingKit not in overlap.sibling_kits:
-                                        add_group = False
-
-                        #       If any triang within the Kit1_Number group is one of the "Excluded Cousin Kits", then remove the entire group
-                                if triangGroup.groupContainsExcludedCousin == True:
-                                    add_group = False
-
-                                if triangGroup.kit_Number in cousinKitsToExclude:
-                                    add_group = False
-
-                                if triangGroup.kit_Number in self.siblingsByKit.keys():
-                                    add_group = False
-
-                                if add_group == True:
-                                    if len(triangGroup.triang_list)>0:
-                                        filteredTriang += triangGroup.triang_list
-
+                                # Evaluate the completed group before starting a new one
+                                filteredTriang += self._evaluate_group(triangGroup, overlap, bestSiblingKit, cousinKitsToExclude)
                                 triangGroup.reset(t.Kit1_Number, t.Chr)
 
                             if t.B37_Start >= overlap.B37_Start and t.B37_Start <= overlap.B37_End and t.B37_End <= overlap.B37_End:
-                                t.grandparent = gparent
-                                t.source_sibling = bestSiblingKit
-                                triangGroup.triang_list.append(t)
+                                t_copy = copy.copy(t)
+                                t_copy.grandparent = gparent
+                                t_copy.source_sibling = bestSiblingKit
+                                triangGroup.triang_list.append(t_copy)
 
                                 # if kit2 is one of the siblings
                                 if t.Kit2_Number in self.siblingsByKit:
@@ -128,6 +139,9 @@ class GrandMatch:
                                         triangGroup.siblingKitCountGroup[t.Kit2_Number] +=1
                                 if t.Kit2_Number in cousinKitsToExclude:
                                     triangGroup.groupContainsExcludedCousin = True
+
+                        # Evaluate the final group (Bug 1 fix)
+                        filteredTriang += self._evaluate_group(triangGroup, overlap, bestSiblingKit, cousinKitsToExclude)
         return filteredTriang
 
 
