@@ -113,6 +113,8 @@ class GrandMatch:
                     for overlap in overlaps:
 
                         bestSiblingKit:str = overlap.sibling_kits[0]
+                        if bestSiblingKit not in chrome.triangBySibling:
+                            continue
                         chr_triang_list: List[Triang] = chrome.triangBySibling[bestSiblingKit]
                         sorted_list: List[Triang] = sorted(chr_triang_list, key=lambda t: (t.Kit1_Number, t.B37_Start, t.B37_End))
 
