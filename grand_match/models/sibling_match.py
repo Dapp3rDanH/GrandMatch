@@ -5,6 +5,7 @@ from dataclasses import dataclass
 class SiblingMatch:
     cousin_name: str
     cousin_kit: str
+    grandparent: str
     sibling_kit: str
     sibling_name: str
     chr: int

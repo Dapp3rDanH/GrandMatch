@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from enum import Enum
 
 from grand_match import MilestoneType, GrandparentSegment
+
 
 @dataclass
 class Milestone:

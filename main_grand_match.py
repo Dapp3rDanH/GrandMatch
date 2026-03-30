@@ -7,11 +7,11 @@ input_directory = os.getcwd() + "\\inputfiles"
 
 input_triangulation_directory = os.getcwd() + "\\inputfiles\\gedmatch\\triangulation"
 
-output_directory = os.getcwd() + f"\\out\\{datetime.now().timestamp()}"
+output_directory = os.getcwd() + f"\\out\\{datetime.now().strftime('%Y-%m-%d_%H%M%S')}"
 
 
 # Set the file name
-file_name = "visualphasing.xlsx"
+file_name = "visualphasing2026.xlsx"
 # Join the working directory and file name to create the full path
 full_path = os.path.join(input_directory, file_name)
 
@@ -31,8 +31,12 @@ grandMatch.cousinByKit = excelImporter.cousinByKit
 
 grandMatch.grandparent_segments = excelImporter.grandparent_segments
 
-print(f'Getting triangulation data from each sibling')
-grandMatch.get_triangulation(input_triangulation_directory)
+enabled_chromosomes = {
+    chr_num for chr_num, setting in excelImporter.chromosome_settings_by_chr.items()
+    if setting.mode.strip().lower() == "yes"
+}
+print(f'Getting triangulation data from each sibling (chromosomes: {sorted(enabled_chromosomes)})')
+grandMatch.get_triangulation(input_triangulation_directory, enabled_chromosomes)
 print(f'Creating chromosome models')
 grandMatch.create_chromosome_models(excelImporter.chromosome_settings_by_chr)
 print(f'Deriving overlaps of grandparent segments and triangulation')

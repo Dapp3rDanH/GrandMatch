@@ -136,6 +136,7 @@ dmypy.json
 ~$*
 
 # Personal DNA data
+docs/DolonHickmam/
 inputfiles/gedmatch/triangulation/*
 !inputfiles/gedmatch/triangulation/README.md
 inputfiles/gedmatch/matches/*
@@ -144,3 +145,12 @@ inputfiles/analysis/*
 !inputfiles/analysis/README.md
 inputfiles/*.xlsm
 inputfiles/visualphasing (version 1).xlsx
+inputfiles/PriorVisualPhase_*.xlsx
+
+# Visual Phaser - personal data and binaries
+visual_phaser/Hickman/
+visual_phaser/Hickman*.xlsx
+visual_phaser/exe/
+visual_phaser/grid_phasing/out/
+visual_phaser/out/
+screenshots/

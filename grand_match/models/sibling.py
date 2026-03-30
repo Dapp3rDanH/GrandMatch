@@ -5,3 +5,4 @@ from dataclasses import dataclass
 class Sibling:
     name: str
     kit: str
+    order: int = 0

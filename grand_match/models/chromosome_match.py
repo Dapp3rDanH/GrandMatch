@@ -7,3 +7,5 @@ class ChromosomeMatch:
     kit: str
     grandparent: str
     chr: int
+    platform: str = ""
+    siblings: str = ""

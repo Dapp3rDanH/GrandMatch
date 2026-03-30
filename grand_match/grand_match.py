@@ -8,6 +8,11 @@ from grand_match import Triang, ChromosomeSetting, OverlapCalculator, TriangGrou
 from grand_match import GedMatchSegmentImporter, GedMatchSegment, SiblingMatch
 import pandas as pd
 
+KIT_PLATFORM = {
+    'A': 'Ancestry', 'F': 'FamilyTreeDNA', 'T': 'FamilyTreeDNA',
+    'G': 'GenesForGood', 'H': 'MyHeritage', 'M': '23andMe', 'W': 'WeGene',
+}
+
 @dataclass()
 class GrandMatch:
 
@@ -46,6 +51,8 @@ class GrandMatch:
                 segments = chromosome_model.segmentsByGrandparent[grandparent]
                 calculator = OverlapCalculator(segments)
                 overlaps = calculator.calculate_overlaps()
+                for overlap in overlaps:
+                    overlap.sibling_kits.sort(key=lambda kit: self.siblingsByKit[kit].order if kit in self.siblingsByKit else 0)
                 chromosome_model.overlapsByGrandparent[grandparent] = overlaps
 
 
@@ -147,11 +154,11 @@ class GrandMatch:
         return filteredTriang
 
 
-    def get_triangulation(self, directory: str):
+    def get_triangulation(self, directory: str, enabled_chromosomes: set = None):
         for sibling in self.siblingsByName.values():
             file_path: str = os.path.join(directory, sibling.kit.strip() + ".csv")
             importer: TriagImporter = TriagImporter()
-            triang_list = importer.createList(file_path)
+            triang_list = importer.createList(file_path, enabled_chromosomes)
             self.triangulationBySiblingKit.setdefault(sibling.kit.strip(), triang_list)
 
     def export_overlaps(self, directory: str):
@@ -205,31 +212,39 @@ class GrandMatch:
         df = pd.DataFrame([vars(triang) for triang in triangs])
         df.to_csv(f'{directory}\\matched_triangulations.csv', index=False)
 
-    def export_chromosome_matches_to_csv(self, chromosome_matches: List[ChromosomeMatch]):
-        directory: str = "out"
+    def export_chromosome_matches_to_csv(self, chromosome_matches: List[ChromosomeMatch], directory: str):
         self.make_out_folder(directory)
         df = pd.DataFrame([vars(c) for c in chromosome_matches])
         df.to_csv(f'{directory}\\chromosome_matches.csv', index=False)
     
     def extract_kits(self, triangs: List[Triang], directory: str):
-        matchesByKit: Dict[(str, int), List[ChromosomeMatch]] = {}
+        matchesByKit: Dict[(str, int, str), ChromosomeMatch] = {}
+        sibling_sets: Dict[(str, int, str), set] = {}
         for t in triangs:
-            key = (t.Kit1_Number, t.Chr)
+            key = (t.Kit1_Number, t.Chr, t.grandparent)
             if key not in matchesByKit:
-                matchesByKit[key] = ChromosomeMatch(name=t.Kit1_Name,kit=t.Kit1_Number, grandparent=t.grandparent, chr=t.Chr)
+                platform = KIT_PLATFORM.get(t.Kit1_Number[0], 'Unknown')
+                matchesByKit[key] = ChromosomeMatch(name=t.Kit1_Name,kit=t.Kit1_Number, grandparent=t.grandparent, chr=t.Chr, platform=platform)
+                sibling_sets[key] = set()
+            sibling_name = self.siblingsByKit[t.source_sibling].name if t.source_sibling in self.siblingsByKit else t.source_sibling
+            sibling_sets[key].add(sibling_name)
+        for key, match in matchesByKit.items():
+            match.siblings = "|".join(sorted(sibling_sets[key]))
 
-        self.export_chromosome_matches_to_csv(matchesByKit.values())
+        self.export_chromosome_matches_to_csv(matchesByKit.values(), directory)
 
         gedmatch_importer = GedMatchSegmentImporter()
         segment_list: List[GedMatchSegment] = gedmatch_importer.importCsv(directory=os.getcwd() + "\\inputfiles\\gedmatch\\matches")
 
-        other_matches: Dict[str, SiblingMatch] = {}
+        other_matches: Dict[tuple, SiblingMatch] = {}
         for kit_chr in matchesByKit.keys():
+            match = matchesByKit[kit_chr]
             for s in segment_list:
                 if kit_chr[0] == s.matched_kit:
-                    key = (s.matched_kit, s.chromosome)
+                    key = (s.matched_kit, s.chromosome, match.grandparent)
                     if key not in other_matches:
-                        sibling_match = SiblingMatch(chr=s.chromosome, cousin_kit=s.matched_kit, cousin_name=s.matched_name, sibling_kit=s.primary_kit, sibling_name=s.primary_kit)
+                        sibling_name = self.siblingsByKit[s.primary_kit].name if s.primary_kit in self.siblingsByKit else s.primary_kit
+                        sibling_match = SiblingMatch(chr=s.chromosome, cousin_kit=s.matched_kit, cousin_name=s.matched_name, grandparent=match.grandparent, sibling_kit=s.primary_kit, sibling_name=sibling_name)
                         other_matches[key] = sibling_match
 
         df = pd.DataFrame([vars(c) for c in other_matches.values()])

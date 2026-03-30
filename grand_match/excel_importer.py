@@ -53,6 +53,9 @@ class ExcelImporter:
 
         for index, row in siblings_df.iterrows():
             name = row['Name'].strip()
+            mode = str(row.get('Mode', 'Yes')).strip()
+            if mode.lower() != 'yes':
+                continue
 
             grandparent = Grandparent(name=name)
             self.grandparentsByName.setdefault(name, grandparent)
@@ -63,8 +66,9 @@ class ExcelImporter:
         for index, row in siblings_df.iterrows():
             name = row['Name'].strip()
             kit = row['Kit'].strip()
+            order = int(row.get('Order', 0) or 0)
 
-            sibling = Sibling(name=name, kit=kit)
+            sibling = Sibling(name=name, kit=kit, order=order)
             self.siblingsByName.setdefault(name, sibling)
             self.siblingsByKit.setdefault(kit, sibling)
 
